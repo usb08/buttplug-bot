@@ -31,19 +31,16 @@ module.exports = {
 				stoppedDevices++;
 			}
 
-			if (deviceState.timeoutId) {
-				clearTimeout(deviceState.timeoutId);
+			const queueSize = deviceState.getQueueLength();
+			deviceState.clearAll();
+			
+			let message = `Stopped ${stoppedDevices} device(s).`;
+			if (queueSize > 0) {
+				message += ` Cleared ${queueSize} queued command(s).`;
 			}
-			if (deviceState.intervalId) {
-				clearInterval(deviceState.intervalId);
-			}
-			deviceState.isActive = false;
-			deviceState.activeCommand = null;
-			deviceState.timeoutId = null;
-			deviceState.intervalId = null;
 			
 			await interaction.reply({ 
-				content: `Stopped ${stoppedDevices} device(s).`
+				content: message
 			});
 			
 		} catch (error) {

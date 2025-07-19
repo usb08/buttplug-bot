@@ -48,6 +48,27 @@ module.exports = {
 			});
 		}
 
+		const queueLength = deviceState?.getQueueLength() || 0;
+		if (queueLength > 0) {
+			const queueCommands = deviceState.queue.slice(0, 3).map((cmd, index) => 
+				`${index + 1}. ${cmd.type} (${cmd.username}) - ${cmd.intensity}% for ${cmd.duration}s`
+			).join('\n');
+			
+			const queueInfo = queueLength > 3 
+				? `${queueCommands}\n... and ${queueLength - 3} more`
+				: queueCommands;
+				
+			embed.addFields({
+				name: `Command Queue (${queueLength})`,
+				value: queueInfo,
+			});
+		} else {
+			embed.addFields({
+				name: 'Command Queue',
+				value: '📭 Queue is empty',
+			});
+		}
+
 		const devices = buttplugClient.devices || [];
 
 		if (devices.length === 0) {

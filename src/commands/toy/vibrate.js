@@ -18,9 +18,13 @@ module.exports = {
                 .setMinValue(1)
                 .setMaxValue(10)),
 	async execute(interaction) {
-		if (deviceState.isActive) {
+		const userId = interaction.user.id;
+		
+		// Check if user has exceeded command limit
+		if (!deviceState.canUserAddCommand(userId)) {
 			await interaction.reply({ 
-				content: `Device is currently busy with ${deviceState.activeCommand} command! Please wait for it to finish.`
+				content: `You've reached the maximum of ${deviceState.USER_COMMAND_LIMIT} commands. Please wait ${Math.ceil(deviceState.USER_TIMEOUT / 1000)} seconds before adding more commands.`,
+				ephemeral: true
 			});
 			return;
 		}
@@ -29,6 +33,8 @@ module.exports = {
 		const duration = interaction.options.getInteger('duration');
 		const buttplugClient = interaction.client.buttplugClient;
 		
+		// Basic validation first
+		let vibratingDevices = [];
 		try {
 			if (!buttplugClient.connected) {
 				await interaction.reply({ 
@@ -46,66 +52,114 @@ module.exports = {
 				return;
 			}
 			
-			const normalizedIntensity = intensity / 100;
-			const normalizedDuration = duration * 1000;
-			
-			let vibratedDevices = 0;
-			const vibratingDevices = [];
-			
 			for (const device of devices) {
 				if (device.vibrateAttributes.length > 0) {
-					const vibrateCommand = device.vibrateAttributes.map(() => normalizedIntensity);
-					await device.vibrate(vibrateCommand);
-					vibratedDevices++;
 					vibratingDevices.push(device);
 				}
 			}
 			
-			if (vibratedDevices > 0) {
-				deviceState.isActive = true;
-				deviceState.activeCommand = 'vibrate';
-				
-				await interaction.reply({ 
-					content: `Vibrating ${vibratedDevices} device(s) at ${intensity}% intensity for ${duration} seconds!`
-				});
-
-				deviceState.timeoutId = setTimeout(async () => {
-					try {
-						for (const device of vibratingDevices) {
-							const stopCommand = device.vibrateAttributes.map(() => 0);
-							await device.vibrate(stopCommand);
-						}
-						
-						await interaction.editReply({ 
-							content: `Vibration complete! ${vibratedDevices} device(s) vibrated at ${intensity}% intensity for ${duration} seconds.`
-						});
-					} catch (error) {
-						console.error('Error stopping vibration:', error);
-						try {
-							await interaction.editReply({ 
-								content: `Vibration ended (with errors). Check console for details.`
-							});
-						} catch (editError) {
-							console.error('Error editing reply:', editError);
-						}
-					} finally {
-						deviceState.isActive = false;
-						deviceState.activeCommand = null;
-						deviceState.timeoutId = null;
-					}
-				}, normalizedDuration);
-			} else {
+			if (vibratingDevices.length === 0) {
 				await interaction.reply({ 
 					content: 'No vibrating devices found among connected devices.', 
 					ephemeral: true 
 				});
+				return;
 			}
-			
 		} catch (error) {
-			console.error('Error in vibrate command:', error);
+			console.error('Error in vibrate command validation:', error);
 			await interaction.reply({ 
-				content: 'An error occurred while trying to vibrate the device.'
+				content: 'An error occurred while validating the command.'
 			});
+			return;
+		}
+		
+		// Increment user command count
+		deviceState.incrementUserCommand(userId);
+		
+		// Create command data for queue
+		const commandData = {
+			type: 'vibrate',
+			userId: userId,
+			username: interaction.user.username,
+			intensity: intensity,
+			duration: duration,
+			interaction: interaction,
+			execute: async () => {
+				try {
+					const normalizedIntensity = intensity / 100;
+					const normalizedDuration = duration * 1000;
+					
+					let vibratedDevices = 0;
+					const vibratingDevices = [];
+					
+					for (const device of buttplugClient.devices) {
+						if (device.vibrateAttributes.length > 0) {
+							const vibrateCommand = device.vibrateAttributes.map(() => normalizedIntensity);
+							await device.vibrate(vibrateCommand);
+							vibratedDevices++;
+							vibratingDevices.push(device);
+						}
+					}
+					
+					if (vibratedDevices > 0) {
+						deviceState.timeoutId = setTimeout(async () => {
+							try {
+								for (const device of vibratingDevices) {
+									const stopCommand = device.vibrateAttributes.map(() => 0);
+									await device.vibrate(stopCommand);
+								}
+								
+								await interaction.editReply({ 
+									content: `Vibration complete! ${vibratedDevices} device(s) vibrated at ${intensity}% intensity for ${duration} seconds.`
+								});
+							} catch (error) {
+								console.error('Error stopping vibration:', error);
+								try {
+									await interaction.editReply({ 
+										content: `Vibration ended (with errors). Check console for details.`
+									});
+								} catch (editError) {
+									console.error('Error editing reply:', editError);
+								}
+							} finally {
+								deviceState.completeCurrentCommand();
+							}
+						}, normalizedDuration);
+					} else {
+						await interaction.editReply({ 
+							content: 'No vibrating devices found among connected devices.'
+						});
+						deviceState.completeCurrentCommand();
+					}
+					
+				} catch (error) {
+					console.error('Error executing vibrate command:', error);
+					try {
+						await interaction.editReply({ 
+							content: 'An error occurred while trying to vibrate the device.'
+						});
+					} catch (editError) {
+						console.error('Error editing reply:', editError);
+					}
+					deviceState.completeCurrentCommand();
+				}
+			}
+		};
+		
+		// Add to queue or execute immediately
+		if (deviceState.isActive) {
+			deviceState.enqueue(commandData);
+			const queuePosition = deviceState.getQueueLength();
+			await interaction.reply({ 
+				content: `Command queued! You are #${queuePosition} in the queue. Vibrate: ${intensity}% intensity for ${duration} seconds.`
+			});
+		} else {
+			// Execute immediately
+			await interaction.reply({ 
+				content: `Vibrating ${vibratingDevices.length} device(s) at ${intensity}% intensity for ${duration} seconds!`
+			});
+			deviceState.enqueue(commandData);
+			await deviceState.processNextCommand();
 		}
 	},
 };

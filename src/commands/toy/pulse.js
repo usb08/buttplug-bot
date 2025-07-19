@@ -18,9 +18,12 @@ module.exports = {
                 .setMinValue(2)
                 .setMaxValue(20)),
 	async execute(interaction) {
-		if (deviceState.isActive) {
+		const userId = interaction.user.id;
+		
+		if (!deviceState.canUserAddCommand(userId)) {
 			await interaction.reply({ 
-				content: `Device is currently busy with ${deviceState.activeCommand} command! Please wait for it to finish.`
+				content: `You've reached the maximum of ${deviceState.USER_COMMAND_LIMIT} commands. Please wait ${Math.ceil(deviceState.USER_TIMEOUT / 1000)} seconds before adding more commands.`,
+				ephemeral: true
 			});
 			return;
 		}
@@ -29,6 +32,7 @@ module.exports = {
 		const duration = interaction.options.getInteger('duration');
 		const buttplugClient = interaction.client.buttplugClient;
 		
+		let vibratingDevices = [];
 		try {
 			if (!buttplugClient.connected) {
 				await interaction.reply({ 
@@ -46,11 +50,6 @@ module.exports = {
 				return;
 			}
 			
-			const normalizedIntensity = intensity / 100;
-			const totalDuration = duration * 1000;
-			
-			let vibratingDevices = [];
-			
 			for (const device of devices) {
 				if (device.vibrateAttributes.length > 0) {
 					vibratingDevices.push(device);
@@ -64,81 +63,118 @@ module.exports = {
 				});
 				return;
 			}
-			
-			deviceState.isActive = true;
-			deviceState.activeCommand = 'pulse';
-			let isOn = false;
-			
+		} catch (error) {
+			console.error('Error in pulse command validation:', error);
 			await interaction.reply({ 
-				content: `Pulsing ${vibratingDevices.length} device(s) at ${intensity}% intensity for ${duration} seconds! (1 sec on, 1 sec off)`
+				content: 'An error occurred while validating the command.'
 			});
-			
-			const toggleVibration = async () => {
+			return;
+		}
+		
+		deviceState.incrementUserCommand(userId);
+		
+		const commandData = {
+			type: 'pulse',
+			userId: userId,
+			username: interaction.user.username,
+			intensity: intensity,
+			duration: duration,
+			interaction: interaction,
+			execute: async () => {
 				try {
-					isOn = !isOn;
-					const vibrationLevel = isOn ? normalizedIntensity : 0;
+					const normalizedIntensity = intensity / 100;
+					const totalDuration = duration * 1000;
 					
-					for (const device of vibratingDevices) {
-						const vibrateCommand = device.vibrateAttributes.map(() => vibrationLevel);
-						await device.vibrate(vibrateCommand);
+					let vibratingDevices = [];
+					for (const device of buttplugClient.devices) {
+						if (device.vibrateAttributes.length > 0) {
+							vibratingDevices.push(device);
+						}
 					}
-				} catch (error) {
-					console.error('Error toggling vibration:', error);
-				}
-			};
-			
-			await toggleVibration();
-			
-			deviceState.intervalId = setInterval(toggleVibration, 1000);
+					
+					if (vibratingDevices.length === 0) {
+						await interaction.editReply({ 
+							content: 'No vibrating devices found among connected devices.'
+						});
+						deviceState.completeCurrentCommand();
+						return;
+					}
+					
+					let isOn = false;
+					
+					const toggleVibration = async () => {
+						try {
+							isOn = !isOn;
+							const vibrationLevel = isOn ? normalizedIntensity : 0;
+							
+							for (const device of vibratingDevices) {
+								const vibrateCommand = device.vibrateAttributes.map(() => vibrationLevel);
+								await device.vibrate(vibrateCommand);
+							}
+						} catch (error) {
+							console.error('Error toggling vibration:', error);
+						}
+					};
+					
+					await toggleVibration();
+					
+					deviceState.intervalId = setInterval(toggleVibration, 1000);
 
-			deviceState.timeoutId = setTimeout(async () => {
-				try {
-					if (deviceState.intervalId) {
-						clearInterval(deviceState.intervalId);
-						deviceState.intervalId = null;
-					}
+					deviceState.timeoutId = setTimeout(async () => {
+						try {
+							if (deviceState.intervalId) {
+								clearInterval(deviceState.intervalId);
+								deviceState.intervalId = null;
+							}
+							
+							for (const device of vibratingDevices) {
+								const stopCommand = device.vibrateAttributes.map(() => 0);
+								await device.vibrate(stopCommand);
+							}
+							
+							await interaction.editReply({ 
+								content: `Pulse complete! ${vibratingDevices.length} device(s) pulsed at ${intensity}% intensity for ${duration} seconds.`
+							});
+						} catch (error) {
+							console.error('Error stopping pulse:', error);
+							try {
+								await interaction.editReply({ 
+									content: `Pulse ended (with errors). Check console for details.`
+								});
+							} catch (editError) {
+								console.error('Error editing reply:', editError);
+							}
+						} finally {
+							deviceState.completeCurrentCommand();
+						}
+					}, totalDuration);
 					
-					for (const device of vibratingDevices) {
-						const stopCommand = device.vibrateAttributes.map(() => 0);
-						await device.vibrate(stopCommand);
-					}
-					
-					await interaction.editReply({ 
-						content: `Pulse complete! ${vibratingDevices.length} device(s) pulsed at ${intensity}% intensity for ${duration} seconds.`
-					});
 				} catch (error) {
-					console.error('Error stopping pulse:', error);
+					console.error('Error executing pulse command:', error);
 					try {
 						await interaction.editReply({ 
-							content: `Pulse ended (with errors). Check console for details.`
+							content: 'An error occurred while trying to pulse the device.'
 						});
 					} catch (editError) {
 						console.error('Error editing reply:', editError);
 					}
-				} finally {
-					deviceState.isActive = false;
-					deviceState.activeCommand = null;
-					deviceState.intervalId = null;
-					deviceState.timeoutId = null;
+					deviceState.completeCurrentCommand();
 				}
-			}, totalDuration);
-			
-		} catch (error) {
-			console.error('Error in pulse command:', error);
+			}
+		};
+		
+		if (deviceState.isActive) {
+			deviceState.enqueue(commandData);
+			const queuePosition = deviceState.getQueueLength();
 			await interaction.reply({ 
-				content: 'An error occurred while trying to pulse the device.'
+				content: `Command queued! You are #${queuePosition} in the queue. Pulse: ${intensity}% intensity for ${duration} seconds (1 sec on, 1 sec off).`
 			});
-			
-			if (deviceState.intervalId) {
-				clearInterval(deviceState.intervalId);
-				deviceState.intervalId = null;
-			}
-			if (deviceState.timeoutId) {
-				clearTimeout(deviceState.timeoutId);
-				deviceState.timeoutId = null;
-			}
-			deviceState.isActive = false;
-			deviceState.activeCommand = null;
+		} else {
+			await interaction.reply({ 
+				content: `Pulsing ${vibratingDevices.length} device(s) at ${intensity}% intensity for ${duration} seconds! (1 sec on, 1 sec off)`
+			});
+			deviceState.enqueue(commandData);
+			await deviceState.processNextCommand();
 		}
 	},
 };
