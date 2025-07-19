@@ -1,10 +1,12 @@
 const { SlashCommandBuilder } = require('discord.js');
 const deviceState = require('../../utils/device-state');
 
+const botAdminRoleId = process.env.BOT_ADMINS_ROLE_ID;
+
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('stop')
-		.setDescription('Stops all device vibrations immediately.'),
+		.setDescription('Stops all device vibrations immediately & clears the command queue.'),
 	async execute(interaction) {
 		const buttplugClient = interaction.client.buttplugClient;
 		
@@ -15,7 +17,14 @@ module.exports = {
 				});
 				return;
 			}
-			
+
+			if (!interaction.member.roles.cache.has(botAdminRoleId)) {
+				await interaction.reply({
+					content: 'You do not have permission to use this command.'
+				});
+				return;
+			}
+
 			const devices = buttplugClient.devices;
 			
 			if (devices.length === 0) {

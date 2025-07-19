@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const deviceState = require('../../utils/device-state');
+const lockState = require('../../utils/lock-state');
 
 module.exports = {
 	data: new SlashCommandBuilder()
@@ -24,6 +25,13 @@ module.exports = {
 			await interaction.reply({ 
 				content: `You've reached the maximum of ${deviceState.USER_COMMAND_LIMIT} commands. Please wait ${Math.ceil(deviceState.USER_TIMEOUT / 1000)} seconds before adding more commands.`,
 				ephemeral: true
+			});
+			return;
+		}
+
+		if (lockState.isLocked) {
+			await interaction.reply({
+				content: 'The bot is currently locked. Please unlock it before using this command.'
 			});
 			return;
 		}
