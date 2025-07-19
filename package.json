@@ -1,0 +1,26 @@
+{
+  "name": "buttplug-bot",
+  "version": "1.0.0",
+  "description": "A Discord bot that lets people control your sex toy using the Buttplug.io module",
+  "homepage": "https://github.com/usb08/buttplug-bot#readme",
+  "bugs": {
+    "url": "https://github.com/usb08/buttplug-bot/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usb08/buttplug-bot.git"
+  },
+  "license": "MIT",
+  "author": "usb08",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "buttplug": "^3.2.2",
+    "discord.js": "^14.21.0",
+    "dotenv": "^17.2.0"
+  }
+}
