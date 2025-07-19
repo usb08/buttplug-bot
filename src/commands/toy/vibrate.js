@@ -20,7 +20,6 @@ module.exports = {
 	async execute(interaction) {
 		const userId = interaction.user.id;
 		
-		// Check if user has exceeded command limit
 		if (!deviceState.canUserAddCommand(userId)) {
 			await interaction.reply({ 
 				content: `You've reached the maximum of ${deviceState.USER_COMMAND_LIMIT} commands. Please wait ${Math.ceil(deviceState.USER_TIMEOUT / 1000)} seconds before adding more commands.`,
@@ -33,7 +32,6 @@ module.exports = {
 		const duration = interaction.options.getInteger('duration');
 		const buttplugClient = interaction.client.buttplugClient;
 		
-		// Basic validation first
 		let vibratingDevices = [];
 		try {
 			if (!buttplugClient.connected) {
@@ -73,10 +71,8 @@ module.exports = {
 			return;
 		}
 		
-		// Increment user command count
 		deviceState.incrementUserCommand(userId);
 		
-		// Create command data for queue
 		const commandData = {
 			type: 'vibrate',
 			userId: userId,
@@ -146,7 +142,6 @@ module.exports = {
 			}
 		};
 		
-		// Add to queue or execute immediately
 		if (deviceState.isActive) {
 			deviceState.enqueue(commandData);
 			const queuePosition = deviceState.getQueueLength();
@@ -154,7 +149,6 @@ module.exports = {
 				content: `Command queued! You are #${queuePosition} in the queue. Vibrate: ${intensity}% intensity for ${duration} seconds.`
 			});
 		} else {
-			// Execute immediately
 			await interaction.reply({ 
 				content: `Vibrating ${vibratingDevices.length} device(s) at ${intensity}% intensity for ${duration} seconds!`
 			});

@@ -13,7 +13,6 @@ module.exports = {
 			.setColor(0x0099FF)
 			.setTimestamp();
 
-		// Current operation
 		if (deviceState.isActive) {
 			embed.addFields({
 				name: 'Currently Running',
@@ -28,7 +27,6 @@ module.exports = {
 			});
 		}
 
-		// Queue status
 		const queueLength = deviceState.getQueueLength();
 		if (queueLength > 0) {
 			const queueCommands = deviceState.queue.map((cmd, index) => 
@@ -46,7 +44,6 @@ module.exports = {
 			});
 		}
 
-		// User's command usage
 		const userCount = deviceState.userCommandCounts.get(userId);
 		const remainingCommands = deviceState.USER_COMMAND_LIMIT - (userCount?.count || 0);
 		const now = Date.now();
