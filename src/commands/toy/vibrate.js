@@ -1,5 +1,10 @@
 const { SlashCommandBuilder } = require('discord.js');
 
+const vibrationState = {
+	isVibrating: false,
+	timeoutId: null
+};
+
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('vibrate')
@@ -17,6 +22,13 @@ module.exports = {
                 .setMinValue(1)
                 .setMaxValue(10)),
 	async execute(interaction) {
+		if (vibrationState.isVibrating) {
+			await interaction.reply({ 
+				content: 'Device is already vibrating! Please wait for the current vibration to finish.'
+			});
+			return;
+		}
+
 		const intensity = interaction.options.getInteger('intensity');
 		const duration = interaction.options.getInteger('duration');
 		const buttplugClient = interaction.client.buttplugClient;
@@ -54,18 +66,34 @@ module.exports = {
 			}
 			
 			if (vibratedDevices > 0) {
+				vibrationState.isVibrating = true;
+				
 				await interaction.reply({ 
 					content: `Vibrating ${vibratedDevices} device(s) at ${intensity}% intensity for ${duration} seconds!`
 				});
 
-				setTimeout(async () => {
+				vibrationState.timeoutId = setTimeout(async () => {
 					try {
 						for (const device of vibratingDevices) {
 							const stopCommand = device.vibrateAttributes.map(() => 0);
 							await device.vibrate(stopCommand);
 						}
+						
+						await interaction.editReply({ 
+							content: `Vibration complete! ${vibratedDevices} device(s) vibrated at ${intensity}% intensity for ${duration} seconds.`
+						});
 					} catch (error) {
 						console.error('Error stopping vibration:', error);
+						try {
+							await interaction.editReply({ 
+								content: `Vibration ended (with errors). Check console for details.`
+							});
+						} catch (editError) {
+							console.error('Error editing reply:', editError);
+						}
+					} finally {
+						vibrationState.isVibrating = false;
+						vibrationState.timeoutId = null;
 					}
 				}, normalizedDuration);
 			} else {
