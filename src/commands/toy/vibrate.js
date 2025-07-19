@@ -9,9 +9,16 @@ module.exports = {
 				.setDescription('The intensity level (1-100)')
 				.setRequired(true)
 				.setMinValue(1)
-				.setMaxValue(100)),
+				.setMaxValue(100))
+        .addIntegerOption(option =>
+            option.setName('duration')
+                .setDescription('The duration for which to vibrate (in seconds) (1-10)')
+                .setRequired(true)
+                .setMinValue(1)
+                .setMaxValue(10)),
 	async execute(interaction) {
 		const intensity = interaction.options.getInteger('intensity');
+		const duration = interaction.options.getInteger('duration');
 		const buttplugClient = interaction.client.buttplugClient;
 		
 		try {
@@ -32,6 +39,7 @@ module.exports = {
 			}
 			
 			const normalizedIntensity = intensity / 100;
+			const normalizedDuration = duration * 1000;
 			
 			let vibratedDevices = 0;
 			const vibratingDevices = [];
@@ -47,7 +55,7 @@ module.exports = {
 			
 			if (vibratedDevices > 0) {
 				await interaction.reply({ 
-					content: `Vibrating ${vibratedDevices} device(s) at ${intensity}% intensity for 2 seconds!`
+					content: `Vibrating ${vibratedDevices} device(s) at ${intensity}% intensity for ${duration} seconds!`
 				});
 
 				setTimeout(async () => {
@@ -59,7 +67,7 @@ module.exports = {
 					} catch (error) {
 						console.error('Error stopping vibration:', error);
 					}
-				}, 2000);
+				}, normalizedDuration);
 			} else {
 				await interaction.reply({ 
 					content: 'No vibrating devices found among connected devices.', 
