@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const deviceState = require('../../utils/device-state');
 
-const botAdminRoleId = process.env.BOT_ADMINS_ROLE_ID;
+const botAdminRoleId = process.env.BOT_ADMIN_ROLE_ID;
 
 module.exports = {
 	data: new SlashCommandBuilder()
