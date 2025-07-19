@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const deviceState = require('../../utils/device-state');
 
 module.exports = {
 	data: new SlashCommandBuilder()
@@ -29,6 +30,17 @@ module.exports = {
 				await device.stop();
 				stoppedDevices++;
 			}
+
+			if (deviceState.timeoutId) {
+				clearTimeout(deviceState.timeoutId);
+			}
+			if (deviceState.intervalId) {
+				clearInterval(deviceState.intervalId);
+			}
+			deviceState.isActive = false;
+			deviceState.activeCommand = null;
+			deviceState.timeoutId = null;
+			deviceState.intervalId = null;
 			
 			await interaction.reply({ 
 				content: `Stopped ${stoppedDevices} device(s).`

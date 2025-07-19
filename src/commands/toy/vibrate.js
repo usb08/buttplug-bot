@@ -1,9 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-
-const vibrationState = {
-	isVibrating: false,
-	timeoutId: null
-};
+const deviceState = require('../../utils/device-state');
 
 module.exports = {
 	data: new SlashCommandBuilder()
@@ -22,9 +18,9 @@ module.exports = {
                 .setMinValue(1)
                 .setMaxValue(10)),
 	async execute(interaction) {
-		if (vibrationState.isVibrating) {
+		if (deviceState.isActive) {
 			await interaction.reply({ 
-				content: 'Device is already vibrating! Please wait for the current vibration to finish.'
+				content: `Device is currently busy with ${deviceState.activeCommand} command! Please wait for it to finish.`
 			});
 			return;
 		}
@@ -66,13 +62,14 @@ module.exports = {
 			}
 			
 			if (vibratedDevices > 0) {
-				vibrationState.isVibrating = true;
+				deviceState.isActive = true;
+				deviceState.activeCommand = 'vibrate';
 				
 				await interaction.reply({ 
 					content: `Vibrating ${vibratedDevices} device(s) at ${intensity}% intensity for ${duration} seconds!`
 				});
 
-				vibrationState.timeoutId = setTimeout(async () => {
+				deviceState.timeoutId = setTimeout(async () => {
 					try {
 						for (const device of vibratingDevices) {
 							const stopCommand = device.vibrateAttributes.map(() => 0);
@@ -92,8 +89,9 @@ module.exports = {
 							console.error('Error editing reply:', editError);
 						}
 					} finally {
-						vibrationState.isVibrating = false;
-						vibrationState.timeoutId = null;
+						deviceState.isActive = false;
+						deviceState.activeCommand = null;
+						deviceState.timeoutId = null;
 					}
 				}, normalizedDuration);
 			} else {
