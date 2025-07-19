@@ -10,7 +10,6 @@ module.exports = {
 		let initialReply;
 
 		try {
-			// Initial reply to prevent timeout
 			initialReply = await interaction.reply({
 				content: '🔄 Getting status...',
 				withResponse: true,

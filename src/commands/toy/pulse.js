@@ -51,7 +51,6 @@ module.exports = {
 			
 			let vibratingDevices = [];
 			
-			// Filter devices that can vibrate
 			for (const device of devices) {
 				if (device.vibrateAttributes.length > 0) {
 					vibratingDevices.push(device);
@@ -74,7 +73,6 @@ module.exports = {
 				content: `Pulsing ${vibratingDevices.length} device(s) at ${intensity}% intensity for ${duration} seconds! (1 sec on, 1 sec off)`
 			});
 			
-			// Function to toggle vibration on/off
 			const toggleVibration = async () => {
 				try {
 					isOn = !isOn;
@@ -89,22 +87,17 @@ module.exports = {
 				}
 			};
 			
-			// Start pulsing immediately (turn on)
 			await toggleVibration();
 			
-			// Set up interval to toggle every second
 			deviceState.intervalId = setInterval(toggleVibration, 1000);
-			
-			// Set timeout to stop after specified duration
+
 			deviceState.timeoutId = setTimeout(async () => {
 				try {
-					// Clear the interval
 					if (deviceState.intervalId) {
 						clearInterval(deviceState.intervalId);
 						deviceState.intervalId = null;
 					}
 					
-					// Make sure all devices are stopped
 					for (const device of vibratingDevices) {
 						const stopCommand = device.vibrateAttributes.map(() => 0);
 						await device.vibrate(stopCommand);
@@ -136,7 +129,6 @@ module.exports = {
 				content: 'An error occurred while trying to pulse the device.'
 			});
 			
-			// Clean up in case of error
 			if (deviceState.intervalId) {
 				clearInterval(deviceState.intervalId);
 				deviceState.intervalId = null;
