@@ -17,7 +17,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "deploy-commands": "node src/deploy-commands.js",
+    "deploy-commands": "node src/deploy-commands.js"
   },
   "dependencies": {
     "buttplug": "^3.2.2",
