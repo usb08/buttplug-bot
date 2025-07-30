@@ -8,10 +8,10 @@ module.exports = {
 		.setDescription('Pulses the device (1 second on, 1 second off) for a specified duration.')
 		.addIntegerOption(option =>
 			option.setName('intensity')
-				.setDescription('The intensity level (1-100)')
+				.setDescription('The intensity level (10-80)')
 				.setRequired(true)
-				.setMinValue(1)
-				.setMaxValue(100))
+				.setMinValue(10)
+				.setMaxValue(80))
         .addIntegerOption(option =>
             option.setName('duration')
                 .setDescription('The total duration for pulsing (in seconds) (2-20)')
